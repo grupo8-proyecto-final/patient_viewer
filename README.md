@@ -175,14 +175,3 @@ FUNDUS_IMAGES_DIR=ruta/a/su/directorio/de/imágenes
 OD_EXCEL_FILE=ruta/a/su/archivo/excel/od.xlsx
 OS_EXCEL_FILE=ruta/a/su/archivo/excel/os.xlsx
 ```
-
-## Contribuciones
-
-Las contribuciones son bienvenidas. Por favor, siga estos pasos:
-
-1. Bifurque el repositorio
-2. Cree una rama para su característica (`git checkout -b feature/amazing-feature`)
-3. Confirme sus cambios (`git commit -m 'Add some amazing feature'`)
-4. Suba su rama (`git push origin feature/amazing-feature`)
-5. Abra una Pull Request
-
