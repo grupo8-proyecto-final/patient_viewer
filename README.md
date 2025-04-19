@@ -1,9 +1,9 @@
 # Visualizador de Datos de Pacientes PAPILA
 
-Esta aplicación proporciona una interfaz gráfica para la gestión y visualización de datos de pacientes del dataset
-PAPILA (Dataset with fundus images and clinical data of both eyes of the same patient for glaucoma assessment). La
-implementación utiliza Tkinter para la interfaz de usuario y sigue principios de arquitectura modular con el patrón
-Vertical Slice.
+Esta aplicación proporciona una interfaz gráfica y por línea de comandos para la gestión y visualización de datos de
+pacientes del dataset PAPILA (Dataset with fundus images and clinical data of both eyes of the same patient for glaucoma
+assessment). La implementación utiliza Tkinter para la interfaz gráfica y también ofrece un menú de consola para
+operaciones básicas.
 
 ![Interfaz de usuario](screenshot.png)
 
@@ -14,6 +14,7 @@ Vertical Slice.
 - **Gestión de pacientes:** Añadir, editar y eliminar pacientes
 - **Estadísticas del conjunto de datos:** Visualización de distribuciones y métricas
 - **Interfaz intuitiva:** Navegación sencilla entre pacientes y datos
+- **Menú de consola:** Alternativa para gestión de pacientes mediante línea de comandos
 
 ## Estructura del Proyecto
 
@@ -22,7 +23,8 @@ El proyecto sigue una arquitectura modular por características (Vertical Slice)
 ```
 patient_viewer/
 │
-├── main.py                     # Punto de entrada de la aplicación
+├── main.py                     # Punto de entrada de la aplicación GUI
+├── menu.py                     # Interfaz por línea de comandos
 ├── .env                        # Variables de entorno para configuración
 │
 ├── core/                       # Modelos y lógica central
@@ -33,7 +35,7 @@ patient_viewer/
 │   ├── __init__.py
 │   ├── patient_management.py   # Gestión de pacientes
 │   ├── data_loading.py         # Carga de datos
-│   └── image_handling.py       # Manejo de imágenes
+│   └── image_utils.py          # Módulo unificado para manejo de imágenes
 │
 ├── ui/                         # Componentes de interfaz de usuario
 │   ├── __init__.py
@@ -47,9 +49,7 @@ patient_viewer/
 │       └── stats_tab.py
 │
 └── utils/                      # Utilidades comunes
-    ├── __init__.py
-    ├── file_operations.py      # Operaciones con archivos
-    └── path_utils.py           # Utilidades para manejar rutas
+    └── __init__.py
 ```
 
 ## Requisitos
@@ -59,6 +59,7 @@ patient_viewer/
     - tkinter (incluido en la mayoría de instalaciones de Python)
     - Pillow (PIL)
     - pandas
+    - numpy
     - python-dotenv
 
 ## Instalación
@@ -80,7 +81,7 @@ source venv/bin/activate  # En Windows: venv\Scripts\activate
 3. Instala las dependencias:
 
 ```bash
-pip install pillow pandas python-dotenv
+pip install pillow pandas numpy python-dotenv
 ```
 
 4. Configura las variables de entorno:
@@ -93,46 +94,74 @@ pip install pillow pandas python-dotenv
 
 ## Ejecución
 
-Para iniciar la aplicación:
+### Interfaz Gráfica
+
+Para iniciar la aplicación con interfaz gráfica:
 
 ```bash
 python main.py
 ```
 
+### Menú de Consola
+
+Para usar la interfaz por línea de comandos:
+
+```bash
+python menu.py
+```
+
 ## Uso de la Aplicación
 
-### Navegación Básica
+### Interfaz Gráfica
+
+#### Navegación Básica
 
 - La interfaz principal muestra los datos del paciente actual con pestañas para diferentes secciones.
 - Use los botones "Anterior" y "Siguiente" para navegar entre pacientes.
 
-### Gestión de Pacientes
+#### Gestión de Pacientes
 
 1. **Añadir Paciente**:
-    - Haga clic en "Añadir Paciente"
+    - Haga clic en "Añadir"
     - Complete el formulario con los datos requeridos
     - Haga clic en "Guardar"
 
 2. **Editar Paciente**:
     - Seleccione el paciente que desea editar
-    - Haga clic en "Editar Paciente"
+    - Haga clic en "Editar"
     - Modifique los datos según sea necesario
     - Haga clic en "Guardar"
 
 3. **Eliminar Paciente**:
     - Seleccione el paciente que desea eliminar
-    - Haga clic en "Eliminar Paciente"
+    - Haga clic en "Eliminar"
     - Confirme la eliminación
 
-### Visualización de Imágenes
+#### Visualización de Imágenes
 
-- Las imágenes de fondo de ojo se muestran en el panel derecho de la interfaz.
+- Las imágenes de fondo de ojo se muestran en el panel inferior de la interfaz.
 - Haga clic en "Abrir Imagen" para ver la imagen en tamaño completo en su visor de imágenes predeterminado.
 
-### Estadísticas
+#### Estadísticas
 
 - La pestaña "Estadísticas" muestra información resumida sobre todos los pacientes en el conjunto de datos.
 - Incluye distribuciones por género, diagnóstico y estadísticas de edad.
+
+### Menú de Consola
+
+El menú de consola ofrece las siguientes opciones:
+
+1. **Ver pacientes**: Muestra una lista de todos los pacientes en el dataset.
+2. **Agregar paciente**: Permite añadir un nuevo paciente solicitando datos como ID, edad, género, diagnóstico, etc.
+3. **Ver paciente**: Muestra información detallada de un paciente específico por su ID.
+4. **Eliminar paciente**: Elimina un paciente del dataset por su ID.
+5. **Guardar y salir**: Guarda los cambios realizados y cierra el programa.
+
+Para usar el menú de consola:
+
+1. Ingrese el número de la opción deseada (1-5)
+2. Siga las instrucciones en pantalla
+3. Los cambios se guardarán automáticamente al elegir la opción 5
 
 ## Estructura de Datos
 
@@ -155,7 +184,6 @@ Cada archivo tiene las siguientes columnas:
 - `pachymetry`: Paquimetría
 - `axial_length`: Longitud axial
 - `mean_defect`: Defecto medio del campo visual
-- `image_path`: Ruta a la imagen de fondo de ojo
 
 ### Imágenes
 
