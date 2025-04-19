@@ -1,10 +1,6 @@
 # Archivos de configuración con credenciales
 .env
 
-# Archivos de Excel (datos de pacientes)
-*.xlsx
-*.xls
-
 # Directorio de imágenes
 FundusImages/
 
