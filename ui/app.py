@@ -43,6 +43,9 @@ class PatientViewer:
         # Crear la interfaz
         self._create_widgets()
 
+        # Reducir el problema de foco/parpadeo al cambiar pestañas
+        self.notebook.bind("<<NotebookTabChanged>>", self._handle_tab_change)
+
         # Mostrar datos del paciente actual
         if self.patient_ids:
             self.display_patient_data()
@@ -51,8 +54,8 @@ class PatientViewer:
 
     def _configure_window(self):
         """Configura el tamaño y posición de la ventana"""
-        window_width = 1000
-        window_height = 700
+        window_width = 800
+        window_height = 900
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         x = (screen_width // 2) - (window_width // 2)
@@ -67,22 +70,30 @@ class PatientViewer:
         self.root.attributes('-topmost', False)
         self.root.focus_force()
 
+    def _handle_tab_change(self, event):
+        """Maneja el cambio de pestañas para minimizar el efecto de parpadeo/cambio de foco"""
+        # Usar after para dar tiempo al redibujado antes de realizar otras acciones
+        self.root.after(50, lambda: self.root.update_idletasks())
+        # Evitar cambios innecesarios de foco
+        current_tab = self.notebook.select()
+        self.notebook.focus_set()
+
     def _create_widgets(self):
         """Crea todos los widgets de la interfaz"""
         # Frame principal
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Controles de navegación
-        self._create_navigation_controls(main_frame)
+        # Frame para la información del paciente actual
+        patient_info_frame = ttk.Frame(main_frame)
+        patient_info_frame.pack(fill=tk.X, pady=(0, 10))
 
-        # Frame para datos e imágenes
-        data_image_frame = ttk.Frame(main_frame)
-        data_image_frame.pack(fill=tk.BOTH, expand=True)
+        self.patient_label = ttk.Label(patient_info_frame, text="", font=('Arial', 11, 'bold'))
+        self.patient_label.pack(side=tk.TOP, pady=(0, 5))
 
         # Notebook para pestañas
-        self.notebook = ttk.Notebook(data_image_frame)
-        self.notebook.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
         # Crear pestañas
         self.general_tab = ttk.Frame(self.notebook)
@@ -104,55 +115,63 @@ class PatientViewer:
         setup_stats_tab(self.stats_tab, self.dataset)
 
         # Frame para imágenes
-        self._create_image_frame(data_image_frame)
+        images_frame = ttk.LabelFrame(main_frame, text="Imágenes de Fondo de Ojo")
+        images_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-    def _create_navigation_controls(self, parent):
-        """Crea los controles de navegación y acciones"""
-        nav_frame = ttk.Frame(parent)
-        nav_frame.pack(fill=tk.X, pady=5)
-
-        self.prev_btn = ttk.Button(nav_frame, text="< Anterior", command=self.prev_patient)
-        self.prev_btn.pack(side=tk.LEFT, padx=5)
-
-        self.next_btn = ttk.Button(nav_frame, text="Siguiente >", command=self.next_patient)
-        self.next_btn.pack(side=tk.LEFT, padx=5)
-
-        self.add_btn = ttk.Button(nav_frame, text="Añadir Paciente", command=self.add_patient)
-        self.add_btn.pack(side=tk.LEFT, padx=5)
-
-        self.edit_btn = ttk.Button(nav_frame, text="Editar Paciente", command=self.edit_patient)
-        self.edit_btn.pack(side=tk.LEFT, padx=5)
-
-        self.delete_btn = ttk.Button(nav_frame, text="Eliminar Paciente", command=self.delete_patient)
-        self.delete_btn.pack(side=tk.LEFT, padx=5)
-
-        self.patient_label = ttk.Label(nav_frame, text="", font=('Arial', 10, 'bold'))
-        self.patient_label.pack(side=tk.LEFT, padx=10)
-
-    def _create_image_frame(self, parent):
-        """Crea el frame para mostrar las imágenes de fondo de ojo"""
-        image_frame = ttk.LabelFrame(parent, text="Imágenes de Fondo de Ojo", padding="10")
-        image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=5, pady=5)
+        # Contenedor para ambas imágenes
+        images_container = ttk.Frame(images_frame)
+        images_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # Imagen OD
-        od_img_frame = ttk.Frame(image_frame)
-        od_img_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        od_img_frame = ttk.Frame(images_container)
+        od_img_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
 
-        ttk.Label(od_img_frame, text="Ojo Derecho (OD)", font=('Arial', 10, 'bold')).pack()
-        self.od_img_label = ttk.Label(od_img_frame)
-        self.od_img_label.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(od_img_frame, text="Ojo Derecho (OD)", font=('Arial', 10, 'bold')).pack(pady=(0, 5))
+        self.od_img_label = ttk.Label(od_img_frame, border=1, relief="solid")
+        self.od_img_label.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         self.od_img_btn = ttk.Button(od_img_frame, text="Abrir Imagen", command=lambda: self.open_image('od'))
-        self.od_img_btn.pack(pady=5)
+        self.od_img_btn.pack()
 
         # Imagen OS
-        os_img_frame = ttk.Frame(image_frame)
-        os_img_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        os_img_frame = ttk.Frame(images_container)
+        os_img_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
 
-        ttk.Label(os_img_frame, text="Ojo Izquierdo (OS)", font=('Arial', 10, 'bold')).pack()
-        self.os_img_label = ttk.Label(os_img_frame)
-        self.os_img_label.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(os_img_frame, text="Ojo Izquierdo (OS)", font=('Arial', 10, 'bold')).pack(pady=(0, 5))
+        self.os_img_label = ttk.Label(os_img_frame, border=1, relief="solid")
+        self.os_img_label.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         self.os_img_btn = ttk.Button(os_img_frame, text="Abrir Imagen", command=lambda: self.open_image('os'))
-        self.os_img_btn.pack(pady=5)
+        self.os_img_btn.pack()
+
+        # Controles de navegación al final (abajo)
+        nav_frame = ttk.LabelFrame(main_frame, text="Navegación")
+        nav_frame.pack(fill=tk.X, pady=(0, 5))
+
+        # Grupo de botones de navegación
+        navigation_buttons = ttk.Frame(nav_frame)
+        navigation_buttons.pack(pady=5, fill=tk.X)
+
+        # Botones de navegación de pacientes
+        nav_patient_frame = ttk.Frame(navigation_buttons)
+        nav_patient_frame.pack(side=tk.LEFT, padx=10)
+
+        self.prev_btn = ttk.Button(nav_patient_frame, text="< Anterior", command=self.prev_patient, width=12)
+        self.prev_btn.pack(side=tk.LEFT, padx=2)
+
+        self.next_btn = ttk.Button(nav_patient_frame, text="Siguiente >", command=self.next_patient, width=12)
+        self.next_btn.pack(side=tk.LEFT, padx=2)
+
+        # Grupo de botones de gestión
+        manage_frame = ttk.Frame(navigation_buttons)
+        manage_frame.pack(side=tk.RIGHT, padx=10)
+
+        self.add_btn = ttk.Button(manage_frame, text="Añadir", command=self.add_patient, width=10)
+        self.add_btn.pack(side=tk.LEFT, padx=2)
+
+        self.edit_btn = ttk.Button(manage_frame, text="Editar", command=self.edit_patient, width=10)
+        self.edit_btn.pack(side=tk.LEFT, padx=2)
+
+        self.delete_btn = ttk.Button(manage_frame, text="Eliminar", command=self.delete_patient, width=10)
+        self.delete_btn.pack(side=tk.LEFT, padx=2)
 
     def display_patient_data(self):
         """Muestra los datos del paciente actual"""
