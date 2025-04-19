@@ -1,16 +1,15 @@
+import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import Dict, Any, Callable, Optional
-from core.models import Patient, Eye
-import os
-import re
-
-# Importación de la función generate_image_path
-from features.data_loading import generate_image_path
+from pip._internal.utils import logging
+from core.models import Patient, Eye, PapilaDataset
+from features.patient_management import generate_patient_id
 
 
 def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[[Dict[str, Any]], None],
-                        edit_mode: bool = False, patient: Optional[Patient] = None) -> None:
+                        edit_mode: bool = False, patient: Optional[Patient] = None,
+                        dataset: Optional[PapilaDataset] = None) -> None:
     """
     Crea un formulario para añadir o editar un paciente.
 
@@ -20,6 +19,7 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
         on_save: Función de callback para guardar el paciente
         edit_mode: True si es modo edición, False si es modo creación
         patient: Paciente a editar (solo en modo edición)
+        dataset: Dataset de pacientes para generar ID automático
     """
     parent.geometry("600x600")  # Tamaño inicial con desplazamiento
 
@@ -55,15 +55,22 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
         entry.grid(row=row, column=1, padx=5, pady=2, sticky=tk.W)
         return entry
 
+    # Generar ID de paciente automáticamente
+    if not edit_mode and dataset:
+        patient_id = generate_patient_id(dataset)
+    elif edit_mode and patient:
+        patient_id = patient.patient_id
+    else:
+        patient_id = ""
+
     # Datos generales
     general_frame = ttk.LabelFrame(form_frame, text="Datos Generales", padding="5")
     general_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
 
-    entries['patient_id'] = add_field(general_frame, "ID del Paciente:", 0)
-    entries['age'] = add_field(general_frame, "Edad:", 1)
+    entries['age'] = add_field(general_frame, "Edad:", 0)
     entries['gender'] = ttk.Combobox(general_frame, values=["MALE", "FEMALE"])
-    entries['gender'].grid(row=2, column=1, padx=5, pady=2, sticky=tk.W)
-    ttk.Label(general_frame, text="Género:").grid(row=2, column=0, padx=5, pady=2, sticky=tk.W)
+    entries['gender'].grid(row=1, column=1, padx=5, pady=2, sticky=tk.W)
+    ttk.Label(general_frame, text="Género:").grid(row=1, column=0, padx=5, pady=2, sticky=tk.W)
 
     # Datos OD
     od_frame = ttk.LabelFrame(form_frame, text="Ojo Derecho (OD)", padding="5")
@@ -86,22 +93,12 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
     entries['od_axial_length'] = add_field(od_frame, "Longitud Axial:", 8)
     entries['od_mean_defect'] = add_field(od_frame, "Defecto Medio:", 9)
 
-    # Crear una etiqueta informativa para imágenes
-    ttk.Label(od_frame, text="Imagen (generada automáticamente):", font=('Arial', 9)).grid(row=10, column=0,
-                                                                                           columnspan=3, padx=5, pady=2,
-                                                                                           sticky=tk.W)
-
-    # Etiqueta para mostrar el estado de la imagen
-    entries['od_image_status'] = ttk.Label(od_frame, text="La imagen se generará automáticamente",
-                                           font=('Arial', 9, 'italic'))
-    entries['od_image_status'].grid(row=11, column=0, columnspan=3, padx=5, pady=2, sticky=tk.W)
-
-    # Botón para verificar disponibilidad de imagen
-    ttk.Button(od_frame, text="Verificar Disponibilidad",
-               command=lambda: check_image_availability(entries['patient_id'].get(), Eye.RIGHT,
-                                                        entries['od_image_status'], images_dir)).grid(row=12, column=0,
-                                                                                                      columnspan=3,
-                                                                                                      padx=5, pady=2)
+    # Campo para la imagen OD con selector de archivos
+    ttk.Label(od_frame, text="Imagen (OD):").grid(row=10, column=0, padx=5, pady=2, sticky=tk.W)
+    entries['od_image'] = ttk.Entry(od_frame)
+    entries['od_image'].grid(row=10, column=1, padx=5, pady=2, sticky=tk.W)
+    ttk.Button(od_frame, text="Seleccionar",
+               command=lambda: select_image(entries['od_image'])).grid(row=10, column=2, padx=5)
 
     # Datos OS
     os_frame = ttk.LabelFrame(form_frame, text="Ojo Izquierdo (OS)", padding="5")
@@ -124,38 +121,19 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
     entries['os_axial_length'] = add_field(os_frame, "Longitud Axial:", 8)
     entries['os_mean_defect'] = add_field(os_frame, "Defecto Medio:", 9)
 
-    # Crear una etiqueta informativa para imágenes
-    ttk.Label(os_frame, text="Imagen (generada automáticamente):", font=('Arial', 9)).grid(row=10, column=0,
-                                                                                           columnspan=3, padx=5, pady=2,
-                                                                                           sticky=tk.W)
-
-    # Etiqueta para mostrar el estado de la imagen
-    entries['os_image_status'] = ttk.Label(os_frame, text="La imagen se generará automáticamente",
-                                           font=('Arial', 9, 'italic'))
-    entries['os_image_status'].grid(row=11, column=0, columnspan=3, padx=5, pady=2, sticky=tk.W)
-
-    # Botón para verificar disponibilidad de imagen
-    ttk.Button(os_frame, text="Verificar Disponibilidad",
-               command=lambda: check_image_availability(entries['patient_id'].get(), Eye.LEFT,
-                                                        entries['os_image_status'], images_dir)).grid(row=12, column=0,
-                                                                                                      columnspan=3,
-                                                                                                      padx=5, pady=2)
-
-    # Enlazar evento de cambio de ID para actualizar las etiquetas de imágenes
-    def update_image_labels(*args):
-        patient_id = entries['patient_id'].get()
-        if patient_id:
-            check_image_availability(patient_id, Eye.RIGHT, entries['od_image_status'], images_dir)
-            check_image_availability(patient_id, Eye.LEFT, entries['os_image_status'], images_dir)
-
-    entries['patient_id'].bind("<FocusOut>", update_image_labels)
+    # Campo para la imagen OS con selector de archivos
+    ttk.Label(os_frame, text="Imagen (OS):").grid(row=10, column=0, padx=5, pady=2, sticky=tk.W)
+    entries['os_image'] = ttk.Entry(os_frame)
+    entries['os_image'].grid(row=10, column=1, padx=5, pady=2, sticky=tk.W)
+    ttk.Button(os_frame, text="Seleccionar",
+               command=lambda: select_image(entries['os_image'])).grid(row=10, column=2, padx=5)
 
     # Botones de acción
     button_frame = ttk.Frame(form_frame)
     button_frame.grid(row=3, column=0, pady=10)
 
     ttk.Button(button_frame, text="Guardar",
-               command=lambda: save_patient(entries, on_save)).pack(side=tk.LEFT, padx=5)
+               command=lambda: save_patient(entries, on_save, images_dir, patient_id)).pack(side=tk.LEFT, padx=5)
     ttk.Button(button_frame, text="Cancelar",
                command=parent.destroy).pack(side=tk.LEFT, padx=5)
 
@@ -168,14 +146,8 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
     # Rellenar datos si es modo edición
     if edit_mode and patient:
         # Datos generales
-        entries['patient_id'].insert(0, patient.patient_id)
-        entries['patient_id'].config(state='disabled')  # No permitir editar el ID
         entries['age'].insert(0, patient.age)
         entries['gender'].set(patient.gender.name)
-
-        # Verificar disponibilidad de imágenes para el paciente actual
-        check_image_availability(patient.patient_id, Eye.RIGHT, entries['od_image_status'], images_dir)
-        check_image_availability(patient.patient_id, Eye.LEFT, entries['os_image_status'], images_dir)
 
         # Datos OD
         if patient.right_eye:
@@ -200,6 +172,8 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
                 entries['od_axial_length'].insert(0, patient.right_eye.axial_length)
             if patient.right_eye.mean_defect is not None:
                 entries['od_mean_defect'].insert(0, patient.right_eye.mean_defect)
+            if patient.right_eye.fundus_image:
+                entries['od_image'].insert(0, patient.right_eye.fundus_image)
 
         # Datos OS
         if patient.left_eye:
@@ -224,71 +198,138 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
                 entries['os_axial_length'].insert(0, patient.left_eye.axial_length)
             if patient.left_eye.mean_defect is not None:
                 entries['os_mean_defect'].insert(0, patient.left_eye.mean_defect)
+            if patient.left_eye.fundus_image:
+                entries['os_image'].insert(0, patient.left_eye.fundus_image)
 
 
-def check_image_availability(patient_id: str, eye_type: Eye, status_label: ttk.Label, images_dir: str) -> None:
+def select_image(entry: ttk.Entry) -> None:
     """
-    Verifica la disponibilidad de una imagen y actualiza la etiqueta de estado.
+    Abre un diálogo para seleccionar una imagen y la guarda en el campo de entrada.
 
     Args:
-        patient_id: ID del paciente
-        eye_type: Tipo de ojo (RIGHT o LEFT)
-        status_label: Etiqueta para mostrar el estado
-        images_dir: Directorio de imágenes
+        entry: Campo de entrada donde se guardará la ruta de la imagen
     """
-    if not patient_id:
-        status_label.config(text="Por favor, ingrese primero el ID del paciente", foreground="red")
-        return
-
-    # Validar el formato del ID del paciente
-    if not re.match(r'^\d+$', patient_id):
-        status_label.config(text="El ID debe ser numérico para generar imágenes automáticamente", foreground="red")
-        return
-
-    # Verificar si ya existe una imagen para este paciente y ojo
-    image_path = generate_image_path(patient_id, eye_type)
-
-    if image_path and os.path.exists(image_path):
-        status_label.config(text=f"✓ Imagen disponible: {os.path.basename(image_path)}", foreground="green")
-    else:
-        suffix = "OD" if eye_type == Eye.RIGHT else "OS"
-        expected_name = f"RET{patient_id}{suffix}.jpg"
-        status_label.config(text=f"✗ Imagen no disponible. Se buscará: {expected_name}", foreground="red")
+    file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *.png")])
+    if file_path:
+        entry.delete(0, tk.END)
+        entry.insert(0, file_path)
 
 
-def save_patient(entries: Dict[str, Any], on_save: Callable[[Dict[str, Any]], None]) -> None:
+def save_patient(entries: Dict[str, Any], on_save: Callable[[Dict[str, Any]], None],
+                 images_dir: str, patient_id: str) -> None:
     """
     Recopila los datos del formulario y llama a la función de guardado.
-
-    Args:
-        entries: Diccionario con los campos de entrada
-        on_save: Función de callback para guardar el paciente
+    Incluye manejo mejorado de imágenes.
     """
-    # Validar ID de paciente
-    patient_id = entries['patient_id'].get()
-    if not patient_id:
-        messagebox.showerror("Error", "Debe ingresar un ID de paciente")
+    # Importar el nuevo módulo de utilidades de imágenes
+    from utils.image_utils import ensure_directory_exists, save_patient_image
+    logger = logging.getLogger("patient_form")
+
+    # Validar edad
+    age = entries['age'].get()
+    if not age:
+        messagebox.showerror("Error", "Debe ingresar la edad del paciente")
+        return
+    try:
+        int(age)
+    except ValueError:
+        messagebox.showerror("Error", "La edad debe ser un número entero")
         return
 
-    if not re.match(r'^\d+$', patient_id):
-        messagebox.showwarning("Advertencia", "El ID debe ser numérico para la generación automática de imágenes")
+    # Validar género
+    gender = entries['gender'].get()
+    if not gender:
+        messagebox.showerror("Error", "Debe seleccionar el género del paciente")
+        return
 
-    # Recopilar datos del formulario
-    patient_data = {}
+    # Validar diagnóstico OD o OS (al menos uno debe estar presente)
+    od_diagnosis = entries['od_diagnosis'].get()
+    os_diagnosis = entries['os_diagnosis'].get()
+    if not od_diagnosis and not os_diagnosis:
+        messagebox.showerror("Error", "Debe ingresar al menos un diagnóstico (OD u OS)")
+        return
 
-    for key, entry in entries.items():
-        # Saltar etiquetas de estado de imagen que no son campos de entrada
-        if key in ['od_image_status', 'os_image_status']:
-            continue
+    # Asegurar que el directorio de imágenes existe
+    ensure_directory_exists(images_dir)
 
-        if isinstance(entry, ttk.Combobox):
-            patient_data[key] = entry.get()
-        elif isinstance(entry, ttk.Entry):
-            patient_data[key] = entry.get()
+    # Procesar imágenes seleccionadas
+    try:
+        logger.info(f"Procesando imágenes para paciente {patient_id}")
 
-    # Añadir campos virtuales para rutas de imágenes (serán ignorados ya que se generan automáticamente)
-    patient_data['od_image'] = ""
-    patient_data['os_image'] = ""
+        # Procesar imagen OD si se ha seleccionado
+        od_image_path = entries['od_image'].get()
+        od_dest_path = None
 
-    # Llamar a la función de guardado
+        if od_image_path and os.path.exists(od_image_path):
+            logger.info(f"Guardando imagen OD desde {od_image_path}")
+            od_dest_path = save_patient_image(od_image_path, patient_id, Eye.RIGHT, images_dir)
+
+            if od_dest_path:
+                logger.info(f"Imagen OD guardada en {od_dest_path}")
+                # Actualizar el campo con la nueva ruta
+                entries['od_image'].delete(0, tk.END)
+                entries['od_image'].insert(0, od_dest_path)
+            else:
+                logger.error(f"Error al guardar la imagen OD")
+                messagebox.showwarning("Advertencia", "No se pudo guardar la imagen del ojo derecho")
+        else:
+            # Si no hay imagen nueva, conservar la ruta existente
+            logger.info(f"No hay nueva imagen OD para procesar o la ruta no existe")
+            od_dest_path = od_image_path
+
+        # Proceso similar para imagen OS
+        os_image_path = entries['os_image'].get()
+        os_dest_path = None
+
+        if os_image_path and os.path.exists(os_image_path):
+            logger.info(f"Guardando imagen OS desde {os_image_path}")
+            os_dest_path = save_patient_image(os_image_path, patient_id, Eye.LEFT, images_dir)
+
+            if os_dest_path:
+                logger.info(f"Imagen OS guardada en {os_dest_path}")
+                # Actualizar el campo con la nueva ruta
+                entries['os_image'].delete(0, tk.END)
+                entries['os_image'].insert(0, os_dest_path)
+            else:
+                logger.error(f"Error al guardar la imagen OS")
+                messagebox.showwarning("Advertencia", "No se pudo guardar la imagen del ojo izquierdo")
+        else:
+            # Si no hay imagen nueva, conservar la ruta existente
+            logger.info(f"No hay nueva imagen OS para procesar o la ruta no existe")
+            os_dest_path = os_image_path
+
+    except Exception as e:
+        logger.error(f"Error al procesar imágenes: {str(e)}", exc_info=True)
+        messagebox.showwarning("Advertencia", f"Error al procesar imágenes: {str(e)}")
+
+    # Preparar datos del paciente para guardar
+    patient_data = {
+        'patient_id': patient_id,
+        'age': entries['age'].get(),
+        'gender': entries['gender'].get(),
+        'od_diagnosis': entries['od_diagnosis'].get(),
+        'od_crystalline': entries['od_crystalline'].get(),
+        'od_sphere': entries['od_sphere'].get(),
+        'od_cylinder': entries['od_cylinder'].get(),
+        'od_axis': entries['od_axis'].get(),
+        'od_pneumatic_iop': entries['od_pneumatic_iop'].get(),
+        'od_perkins_iop': entries['od_perkins_iop'].get(),
+        'od_pachymetry': entries['od_pachymetry'].get(),
+        'od_axial_length': entries['od_axial_length'].get(),
+        'od_mean_defect': entries['od_mean_defect'].get(),
+        'od_image': od_dest_path,  # Usar la nueva ruta generada
+        'os_diagnosis': entries['os_diagnosis'].get(),
+        'os_crystalline': entries['os_crystalline'].get(),
+        'os_sphere': entries['os_sphere'].get(),
+        'os_cylinder': entries['os_cylinder'].get(),
+        'os_axis': entries['os_axis'].get(),
+        'os_pneumatic_iop': entries['os_pneumatic_iop'].get(),
+        'os_perkins_iop': entries['os_perkins_iop'].get(),
+        'os_pachymetry': entries['os_pachymetry'].get(),
+        'os_axial_length': entries['os_axial_length'].get(),
+        'os_mean_defect': entries['os_mean_defect'].get(),
+        'os_image': os_dest_path,  # Usar la nueva ruta generada
+    }
+
+    # Llamar a la función de guardado con los datos
     on_save(patient_data)

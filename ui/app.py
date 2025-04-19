@@ -1,16 +1,16 @@
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-import os
 
-# Importaciones internas
-from features.data_loading import load_patient_data, generate_image_path
-from features.patient_management import add_patient, update_patient, delete_patient
-from features.image_handling import load_and_display_image, open_external_image
-from ui.patient_form import create_patient_form
-from ui.tabs.general_tab import setup_general_tab
-from ui.tabs.eye_tab import setup_eye_tab
-from ui.tabs.stats_tab import setup_stats_tab
 from core.models import Eye
+# Importaciones internas
+from features.data_loading import load_patient_data
+from features.patient_management import add_patient, update_patient, delete_patient
+from ui.patient_form import create_patient_form
+from ui.tabs.eye_tab import setup_eye_tab
+from ui.tabs.general_tab import setup_general_tab
+from ui.tabs.stats_tab import setup_stats_tab
+from utils.image_utils import open_external_image
 
 # Obtener la ruta de imágenes de las variables de entorno
 FUNDUS_IMAGES_DIR = os.environ.get('FUNDUS_IMAGES_DIR', 'FundusImages')
@@ -56,15 +56,21 @@ class PatientViewer:
             self.clear_display()
 
     def _configure_window(self):
-        """Configura el tamaño y posición de la ventana"""
-        window_width = 800
-        window_height = 900
+        window_width = 780
+        window_height = 780  # Reducción de altura
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         x = (screen_width // 2) - (window_width // 2)
         y = (screen_height // 2) - (window_height // 2)
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         self.root.bind("<Map>", lambda e: self.bring_to_front())
+
+        # Aplicar un estilo más compacto - reducir paddings
+        style = ttk.Style()
+        style.configure("TFrame", padding=2)  # Reducir padding en frames
+        style.configure("TLabelframe", padding=2)  # Reducir padding en labelframes
+        style.configure("TButton", padding=(4, 2))  # Botones más compactos
+        style.configure("TLabel", padding=(2, 1))  # Etiquetas más compactas
 
     def bring_to_front(self):
         """Trae la ventana al frente cuando se restaura"""
@@ -81,22 +87,43 @@ class PatientViewer:
         current_tab = self.notebook.select()
         self.notebook.focus_set()
 
+    # Modificar el método _configure_window para un tamaño más compacto
+    def _configure_window(self):
+        """Configura el tamaño y posición de la ventana para una UI más compacta"""
+        # Reducimos ligeramente el ancho, pero sobre todo la altura
+        window_width = 780
+        window_height = 780  # Reducción de altura
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width // 2) - (window_width // 2)
+        y = (screen_height // 2) - (window_height // 2)
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self.root.bind("<Map>", lambda e: self.bring_to_front())
+
+        # Aplicar un estilo más compacto - reducir paddings
+        style = ttk.Style()
+        style.configure("TFrame", padding=2)  # Reducir padding en frames
+        style.configure("TLabelframe", padding=2)  # Reducir padding en labelframes
+        style.configure("TButton", padding=(4, 2))  # Botones más compactos
+        style.configure("TLabel", padding=(2, 1))  # Etiquetas más compactas
+
+    # Modificar el método _create_widgets para una UI más compacta
     def _create_widgets(self):
-        """Crea todos los widgets de la interfaz"""
-        # Frame principal
-        main_frame = ttk.Frame(self.root, padding="10")
+        """Crea todos los widgets de la interfaz con un diseño más compacto"""
+        # Frame principal con padding reducido
+        main_frame = ttk.Frame(self.root, padding="5")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Frame para la información del paciente actual
+        # Frame para la información del paciente actual - reducir espacio
         patient_info_frame = ttk.Frame(main_frame)
-        patient_info_frame.pack(fill=tk.X, pady=(0, 10))
+        patient_info_frame.pack(fill=tk.X, pady=(0, 5))
 
-        self.patient_label = ttk.Label(patient_info_frame, text="", font=('Arial', 11, 'bold'))
-        self.patient_label.pack(side=tk.TOP, pady=(0, 5))
+        self.patient_label = ttk.Label(patient_info_frame, text="", font=('Arial', 10, 'bold'))
+        self.patient_label.pack(side=tk.TOP, pady=(0, 2))
 
-        # Notebook para pestañas
+        # Notebook para pestañas - reducir espacio después
         self.notebook = ttk.Notebook(main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        self.notebook.pack(fill=tk.BOTH, expand=False, pady=(0, 5))  # expand=False para limitar expansión
 
         # Crear pestañas
         self.general_tab = ttk.Frame(self.notebook)
@@ -119,62 +146,62 @@ class PatientViewer:
 
         # Frame para imágenes
         images_frame = ttk.LabelFrame(main_frame, text="Imágenes de Fondo de Ojo")
-        images_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        images_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
 
         # Contenedor para ambas imágenes
         images_container = ttk.Frame(images_frame)
-        images_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        images_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Imagen OD
         od_img_frame = ttk.Frame(images_container)
-        od_img_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        od_img_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 3))
 
-        ttk.Label(od_img_frame, text="Ojo Derecho (OD)", font=('Arial', 10, 'bold')).pack(pady=(0, 5))
+        ttk.Label(od_img_frame, text="Ojo Derecho (OD)", font=('Arial', 9, 'bold')).pack(pady=(0, 2))
         self.od_img_label = ttk.Label(od_img_frame, border=1, relief="solid")
-        self.od_img_label.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        self.od_img_label.pack(fill=tk.BOTH, expand=True, pady=(0, 2))
         self.od_img_btn = ttk.Button(od_img_frame, text="Abrir Imagen", command=lambda: self.open_image('od'))
         self.od_img_btn.pack()
 
         # Imagen OS
         os_img_frame = ttk.Frame(images_container)
-        os_img_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        os_img_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(3, 0))
 
-        ttk.Label(os_img_frame, text="Ojo Izquierdo (OS)", font=('Arial', 10, 'bold')).pack(pady=(0, 5))
+        ttk.Label(os_img_frame, text="Ojo Izquierdo (OS)", font=('Arial', 9, 'bold')).pack(pady=(0, 2))
         self.os_img_label = ttk.Label(os_img_frame, border=1, relief="solid")
-        self.os_img_label.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        self.os_img_label.pack(fill=tk.BOTH, expand=True, pady=(0, 2))
         self.os_img_btn = ttk.Button(os_img_frame, text="Abrir Imagen", command=lambda: self.open_image('os'))
         self.os_img_btn.pack()
 
-        # Controles de navegación al final (abajo)
+        # Controles de navegación
         nav_frame = ttk.LabelFrame(main_frame, text="Navegación")
-        nav_frame.pack(fill=tk.X, pady=(0, 5))
+        nav_frame.pack(fill=tk.X, pady=(0, 2))
 
-        # Grupo de botones de navegación
+        # Grupo de botones de navegació
         navigation_buttons = ttk.Frame(nav_frame)
-        navigation_buttons.pack(pady=5, fill=tk.X)
+        navigation_buttons.pack(pady=3, fill=tk.X)
 
         # Botones de navegación de pacientes
         nav_patient_frame = ttk.Frame(navigation_buttons)
-        nav_patient_frame.pack(side=tk.LEFT, padx=10)
+        nav_patient_frame.pack(side=tk.LEFT, padx=5)
 
-        self.prev_btn = ttk.Button(nav_patient_frame, text="< Anterior", command=self.prev_patient, width=12)
-        self.prev_btn.pack(side=tk.LEFT, padx=2)
+        self.prev_btn = ttk.Button(nav_patient_frame, text="< Anterior", command=self.prev_patient, width=10)
+        self.prev_btn.pack(side=tk.LEFT, padx=1)
 
-        self.next_btn = ttk.Button(nav_patient_frame, text="Siguiente >", command=self.next_patient, width=12)
-        self.next_btn.pack(side=tk.LEFT, padx=2)
+        self.next_btn = ttk.Button(nav_patient_frame, text="Siguiente >", command=self.next_patient, width=10)
+        self.next_btn.pack(side=tk.LEFT, padx=1)
 
         # Grupo de botones de gestión
         manage_frame = ttk.Frame(navigation_buttons)
-        manage_frame.pack(side=tk.RIGHT, padx=10)
+        manage_frame.pack(side=tk.RIGHT, padx=5)
 
-        self.add_btn = ttk.Button(manage_frame, text="Añadir", command=self.add_patient, width=10)
-        self.add_btn.pack(side=tk.LEFT, padx=2)
+        self.add_btn = ttk.Button(manage_frame, text="Añadir", command=self.add_patient, width=8)
+        self.add_btn.pack(side=tk.LEFT, padx=1)
 
-        self.edit_btn = ttk.Button(manage_frame, text="Editar", command=self.edit_patient, width=10)
-        self.edit_btn.pack(side=tk.LEFT, padx=2)
+        self.edit_btn = ttk.Button(manage_frame, text="Editar", command=self.edit_patient, width=8)
+        self.edit_btn.pack(side=tk.LEFT, padx=1)
 
-        self.delete_btn = ttk.Button(manage_frame, text="Eliminar", command=self.delete_patient, width=10)
-        self.delete_btn.pack(side=tk.LEFT, padx=2)
+        self.delete_btn = ttk.Button(manage_frame, text="Eliminar", command=self.delete_patient, width=8)
+        self.delete_btn.pack(side=tk.LEFT, padx=1)
 
     def display_patient_data(self):
         """Muestra los datos del paciente actual"""
@@ -211,50 +238,86 @@ class PatientViewer:
         self.delete_btn.config(state=tk.NORMAL)
 
     def update_images(self, patient_id):
-        """Actualiza las imágenes de fondo de ojo para el paciente actual"""
+        """
+        Actualiza las imágenes de fondo de ojo para el paciente actual
+        usando el nuevo módulo de utilidades de imágenes.
+        """
+        # Importar el nuevo módulo de utilidades de imágenes
+        from utils.image_utils import find_image_for_patient, load_and_display_image
+
         # Limpiar imágenes previas
         self.od_img_label.config(image='')
         self.os_img_label.config(image='')
         self.od_photo = None
         self.os_photo = None
 
-        # Generar ruta de imagen para OD
-        od_path = generate_image_path(patient_id, Eye.RIGHT)
+        # Obtener el paciente actual
+        patient = self.dataset.patients[patient_id]
 
-        print(f"PatientViewer: ID={patient_id}, OD path={od_path}")
+        # Log para depuración
+        print(f"DEBUG - Actualizando imágenes para paciente: {patient_id}")
+        print(f"DEBUG - Directorio de imágenes: {self.images_dir}")
 
+        # Buscar y cargar imagen OD
+        od_path = find_image_for_patient(patient_id, Eye.RIGHT, self.images_dir)
         if od_path:
+            print(f"DEBUG - Imagen OD encontrada: {od_path}")
             self.od_image, self.od_photo = load_and_display_image(od_path, self.od_img_label, self.images_dir)
             self.od_img_btn.config(state=tk.NORMAL)
         else:
+            print(f"DEBUG - No se encontró imagen OD para paciente {patient_id}")
             self.od_img_label.config(text="Imagen no disponible")
             self.od_img_btn.config(state=tk.DISABLED)
 
-        # Generar ruta de imagen para OD
-        od_path = generate_image_path(patient_id, Eye.RIGHT)
-        if od_path:
-            self.od_image, self.od_photo = load_and_display_image(od_path, self.od_img_label, self.images_dir)
-            self.od_img_btn.config(state=tk.NORMAL)
-        else:
-            self.od_img_label.config(text="Imagen no disponible")
-            self.od_img_btn.config(state=tk.DISABLED)
+            # Intentar usar la ruta almacenada en el objeto paciente como respaldo
+            if patient.right_eye and patient.right_eye.fundus_image:
+                od_path = patient.right_eye.fundus_image
+                print(f"DEBUG - Intentando con ruta desde objeto paciente: {od_path}")
+                if os.path.exists(od_path):
+                    self.od_image, self.od_photo = load_and_display_image(od_path, self.od_img_label, self.images_dir)
+                    self.od_img_btn.config(state=tk.NORMAL)
 
-        # Generar ruta de imagen para OS
-        os_path = generate_image_path(patient_id, Eye.LEFT)
+        # Buscar y cargar imagen OS
+        os_path = find_image_for_patient(patient_id, Eye.LEFT, self.images_dir)
         if os_path:
+            print(f"DEBUG - Imagen OS encontrada: {os_path}")
             self.os_image, self.os_photo = load_and_display_image(os_path, self.os_img_label, self.images_dir)
             self.os_img_btn.config(state=tk.NORMAL)
         else:
+            print(f"DEBUG - No se encontró imagen OS para paciente {patient_id}")
             self.os_img_label.config(text="Imagen no disponible")
             self.os_img_btn.config(state=tk.DISABLED)
+
+            # Intentar usar la ruta almacenada en el objeto paciente como respaldo
+            if patient.left_eye and patient.left_eye.fundus_image:
+                os_path = patient.left_eye.fundus_image
+                print(f"DEBUG - Intentando con ruta desde objeto paciente: {os_path}")
+                if os.path.exists(os_path):
+                    self.os_image, self.os_photo = load_and_display_image(os_path, self.os_img_label, self.images_dir)
+                    self.os_img_btn.config(state=tk.NORMAL)
 
     def open_image(self, eye_side):
         """Abre la imagen en el visor predeterminado del sistema"""
         patient_id = self.patient_ids[self.current_index]
-        eye_type = Eye.RIGHT if eye_side == 'od' else Eye.LEFT
-        image_path = generate_image_path(patient_id, eye_type)
 
-        if image_path:
+        # Generar ruta de imagen basada en el ID del paciente
+        clean_id = str(patient_id).replace('#', '')
+        suffix = "OD" if eye_side == 'od' else "OS"
+
+        # Intentar con formato estándar
+        filename = f"RET{clean_id}{suffix}.jpg"
+        image_path = os.path.join(self.images_dir, filename)
+
+        # Intentar también sin ceros a la izquierda
+        if not os.path.exists(image_path) and clean_id.isdigit():
+            numeric_id = int(clean_id)
+            filename_alt = f"RET{numeric_id}{suffix}.jpg"
+            image_path_alt = os.path.join(self.images_dir, filename_alt)
+
+            if os.path.exists(image_path_alt):
+                image_path = image_path_alt
+
+        if os.path.exists(image_path):
             open_external_image(image_path, self.images_dir)
         else:
             messagebox.showwarning("Advertencia", "No hay imagen disponible para abrir")
@@ -303,7 +366,7 @@ class PatientViewer:
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo guardar el paciente: {str(e)}")
 
-        create_patient_form(form_window, self.images_dir, on_save=on_save)
+        create_patient_form(form_window, self.images_dir, on_save=on_save, dataset=self.dataset)
 
     def edit_patient(self):
         """Edita el paciente actual"""
@@ -342,7 +405,10 @@ class PatientViewer:
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo actualizar el paciente: {str(e)}")
 
-        create_patient_form(form_window, self.images_dir, on_save=on_save, edit_mode=True, patient=patient)
+        create_patient_form(form_window, self.images_dir, on_save=on_save,
+                            edit_mode=True,
+                            patient=patient,
+                            dataset=self.dataset)
 
     def delete_patient(self):
         """Elimina el paciente actual"""

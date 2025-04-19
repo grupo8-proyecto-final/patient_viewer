@@ -10,6 +10,46 @@ OS_EXCEL_FILE = os.environ.get('OS_EXCEL_FILE', 'patient_data_os.xlsx')
 FUNDUS_IMAGES_DIR = os.environ.get('FUNDUS_IMAGES_DIR', 'FundusImages')
 
 
+def get_next_correlative_number(images_dir: str) -> int:
+    """
+    Obtiene el próximo número correlativo para imágenes de fondo de ojo.
+
+    Args:
+        images_dir: Directorio de imágenes de fondo de ojo
+
+    Returns:
+        Próximo número correlativo
+    """
+    # Verificar si el directorio existe
+    if not os.path.exists(images_dir):
+        os.makedirs(images_dir)
+        return 1
+
+    # Obtener todos los archivos de imagen existentes
+    image_files = [f for f in os.listdir(images_dir) if f.startswith('RET') and f.endswith(('.jpg', '.jpeg', '.png'))]
+
+    # Si no hay imágenes, comenzar desde 1
+    if not image_files:
+        return 1
+
+    # Extraer números de las imágenes existentes
+    existing_numbers = []
+    for filename in image_files:
+        try:
+            # Extraer el número entre 'RET' y 'O' (para OD/OS)
+            number = int(filename[3:filename.index('O')])
+            existing_numbers.append(number)
+        except (ValueError, IndexError):
+            continue
+
+    # Si no se extrajeron números, comenzar desde 1
+    if not existing_numbers:
+        return 1
+
+    # Devolver el siguiente número no utilizado
+    return max(existing_numbers) + 1
+
+
 def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Renombra las columnas del DataFrame a un formato estándar.
@@ -84,84 +124,31 @@ def generate_image_path(patient_id: str, eye_type: Eye) -> Optional[str]:
     clean_id = str(patient_id).replace('#', '')
     print(f"ID limpiado: '{clean_id}'")
 
-    # Construir el nombre del archivo
-    file_name = f"RET{clean_id}{suffix}.jpg"
-    print(f"Nombre de archivo generado: {file_name}")
+    # Intentar con diferentes formatos de ID
+    possible_filenames = [
+        f"RET{clean_id}{suffix}.jpg",
+        f"RET{int(clean_id) if clean_id.isdigit() else clean_id}{suffix}.jpg"
+    ]
 
-    # Construir la ruta completa
-    file_path = os.path.join(FUNDUS_IMAGES_DIR, file_name)
-    print(f"Ruta completa: {file_path}")
-    print(f"Variable FUNDUS_IMAGES_DIR: {FUNDUS_IMAGES_DIR}")
-    print(f"¿Existe el archivo? {os.path.exists(file_path)}")
+    for filename in possible_filenames:
+        filepath = os.path.join(FUNDUS_IMAGES_DIR, filename)
+        print(f"Buscando: {filepath}")
 
-    # Verificar si el archivo existe
-    if os.path.exists(file_path):
-        print(f"ÉXITO: Se encontró el archivo {file_path}")
-        return file_path
+        if os.path.exists(filepath):
+            print(f"ÉXITO: Se encontró el archivo {filepath}")
+            return filepath
 
-    # Si no existe, buscar patrones alternativos (por ejemplo, si el ID está sin ceros a la izquierda)
-    try:
-        # Intentar con ID numérico sin ceros a la izquierda
-        if clean_id.isdigit():
-            numeric_id = int(clean_id)
-            alt_file_name = f"RET{numeric_id}{suffix}.jpg"
-            alt_file_path = os.path.join(FUNDUS_IMAGES_DIR, alt_file_name)
-            print(f"Intentando con ID numérico sin ceros: {alt_file_path}")
-            print(f"¿Existe? {os.path.exists(alt_file_path)}")
+    # Si no se encuentra imagen existente, generar un nombre nuevo
+    new_filename = generate_correlative_image_filename(patient_id, eye_type, FUNDUS_IMAGES_DIR)
+    new_filepath = os.path.join(FUNDUS_IMAGES_DIR, new_filename)
+    print(f"Generando nuevo nombre de archivo: {new_filepath}")
 
-            if os.path.exists(alt_file_path):
-                print(f"ÉXITO: Se encontró archivo alternativo {alt_file_path}")
-                return alt_file_path
-    except ValueError:
-        # Si no es numérico, no intentar esta conversión
-        print("El ID no es numérico, no se intentó conversión")
-
-    # Buscar en el directorio si hay algún archivo que coincida con el patrón
-    print("Buscando archivos que coincidan con el patrón en el directorio...")
-    if os.path.exists(FUNDUS_IMAGES_DIR):
-        found_files = []
-        pattern = f"RET{clean_id}".upper()
-        alt_pattern = f"RET{clean_id.lstrip('0')}".upper() if clean_id.isdigit() else None
-
-        for file in os.listdir(FUNDUS_IMAGES_DIR):
-            file_upper = file.upper()
-            if (file_upper.startswith(pattern) and file_upper.endswith(f"{suffix}.JPG".upper())) or \
-                    (alt_pattern and file_upper.startswith(alt_pattern) and file_upper.endswith(
-                        f"{suffix}.JPG".upper())):
-                found_path = os.path.join(FUNDUS_IMAGES_DIR, file)
-                found_files.append(found_path)
-                print(f"Encontrado archivo que coincide: {found_path}")
-
-        if found_files:
-            print(f"ÉXITO: Se encontró coincidencia {found_files[0]}")
-            return found_files[0]
-        else:
-            print(f"No se encontraron archivos que coincidan con el patrón")
-    else:
-        print(f"ADVERTENCIA: El directorio {FUNDUS_IMAGES_DIR} no existe")
-
-    # Listar todos los archivos en el directorio para depuración
-    if os.path.exists(FUNDUS_IMAGES_DIR):
-        print("\nArchivos disponibles en el directorio:")
-        for i, file in enumerate(sorted(os.listdir(FUNDUS_IMAGES_DIR))[:20]):  # Mostrar solo los primeros 20
-            print(f"  - {file}")
-        if len(os.listdir(FUNDUS_IMAGES_DIR)) > 20:
-            print(f"  ... y {len(os.listdir(FUNDUS_IMAGES_DIR)) - 20} archivos más")
-
-    print("No se encontró ninguna imagen correspondiente")
-    return None
+    return new_filepath
 
 
 def load_patient_data(od_excel_file: str = None, os_excel_file: str = None) -> PapilaDataset:
     """
     Carga los datos de pacientes desde los archivos Excel.
-
-    Args:
-        od_excel_file: Ruta al archivo Excel con datos de ojos derechos (opcional)
-        os_excel_file: Ruta al archivo Excel con datos de ojos izquierdos (opcional)
-
-    Returns:
-        Un objeto PapilaDataset con los datos cargados
     """
     # Usar los valores de las variables de entorno si no se proporcionan parámetros
     od_excel_file = od_excel_file or OD_EXCEL_FILE
@@ -170,13 +157,25 @@ def load_patient_data(od_excel_file: str = None, os_excel_file: str = None) -> P
     dataset = PapilaDataset()
 
     try:
-        # Cargar datos de OD - manejar casos donde hay cabeceras fusionadas
-        od_df = pd.read_excel(od_excel_file, header=1)
-        od_df = clean_headers(od_df)
+        # Cargar datos de OD
+        od_df = pd.read_excel(od_excel_file,
+                              header=0,  # Usar la primera fila como encabezado
+                              dtype={
+                                  'patient_id': str,  # Asegurar que patient_id sea string
+                                  'age': int,
+                                  'gender': int,
+                                  'diagnosis': int
+                              })
 
-        # Cargar datos de OS
-        os_df = pd.read_excel(os_excel_file, header=1)
-        os_df = clean_headers(os_df)
+        # Cargar datos de OS de manera similar
+        os_df = pd.read_excel(os_excel_file,
+                              header=0,
+                              dtype={
+                                  'patient_id': str,
+                                  'age': int,
+                                  'gender': int,
+                                  'diagnosis': int
+                              })
 
         # Combinar IDs de pacientes
         patient_ids = set(od_df['patient_id'].tolist() + os_df['patient_id'].tolist())
@@ -195,7 +194,7 @@ def load_patient_data(od_excel_file: str = None, os_excel_file: str = None) -> P
 
                 # Crear paciente
                 patient = Patient(
-                    patient_id=str(patient_id),  # Asegurar que sea string
+                    patient_id=str(patient_id),
                     age=int(patient_row['age']),
                     gender=Gender(int(patient_row['gender']))
                 )
@@ -215,7 +214,6 @@ def load_patient_data(od_excel_file: str = None, os_excel_file: str = None) -> P
 
     except Exception as e:
         print(f"Error al cargar datos: {e}")
-        # Manejar el error según sea necesario
 
     return dataset
 
@@ -223,13 +221,6 @@ def load_patient_data(od_excel_file: str = None, os_excel_file: str = None) -> P
 def _create_eye_data_from_row(row, eye_type: Eye) -> EyeData:
     """
     Crea un objeto EyeData a partir de una fila del DataFrame.
-
-    Args:
-        row: Fila del DataFrame con datos del ojo
-        eye_type: Tipo de ojo (RIGHT o LEFT)
-
-    Returns:
-        Objeto EyeData con los datos del ojo
     """
     # Crear objeto RefractiveError si existe el valor de esfera
     refractive_error = None
@@ -254,28 +245,13 @@ def _create_eye_data_from_row(row, eye_type: Eye) -> EyeData:
         mean_defect=float(row['mean_defect']) if not pd.isna(row['mean_defect']) else None
     )
 
-    # Intentar generar la ruta de la imagen automáticamente
-    patient_id = str(row['patient_id'])
-    image_path = generate_image_path(patient_id, eye_type)
-
-    # Si se encontró una imagen, agregarla
-    if image_path:
+    # Intentar agregar imagen de fondo de ojo
+    image_path = generate_image_path(str(row['patient_id']), eye_type)
+    if os.path.exists(image_path):
         try:
             eye_data.add_fundus_image(image_path)
         except FileNotFoundError:
-            # Si hay error al agregar la imagen, lo registramos pero no fallamos
             print(f"No se pudo encontrar la imagen en: {image_path}")
-
-    # Como respaldo, si image_path existe en el DataFrame y no pudimos generar la ruta automáticamente
-    elif 'image_path' in row and not pd.isna(row['image_path']) and isinstance(row['image_path'], str):
-        try:
-            eye_data.add_fundus_image(row['image_path'])
-        except FileNotFoundError:
-            # Si no encuentra la imagen, buscarla en la carpeta FundusImages
-            base_name = os.path.basename(row['image_path'])
-            alt_path = os.path.join(FUNDUS_IMAGES_DIR, base_name)
-            if os.path.exists(alt_path):
-                eye_data.add_fundus_image(alt_path)
 
     return eye_data
 
@@ -312,7 +288,6 @@ def update_excel_files(patient: Patient, edit_mode: bool) -> None:
             'mean_defect': patient.right_eye.mean_defect if patient.right_eye and patient.right_eye.mean_defect is not None else "",
         }
 
-        # Ya no necesitamos guardar image_path, se generará automáticamente
         if edit_mode:
             od_df = od_df[od_df['patient_id'] != patient.patient_id]
         od_df = pd.concat([od_df, pd.DataFrame([od_data])], ignore_index=True)
