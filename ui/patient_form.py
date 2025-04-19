@@ -1,7 +1,12 @@
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 from typing import Dict, Any, Callable, Optional
-from core.models import Patient
+from core.models import Patient, Eye
+import os
+import re
+
+# Importación de la función generate_image_path
+from features.data_loading import generate_image_path
 
 
 def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[[Dict[str, Any]], None],
@@ -80,9 +85,23 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
     entries['od_pachymetry'] = add_field(od_frame, "Paquimetría:", 7)
     entries['od_axial_length'] = add_field(od_frame, "Longitud Axial:", 8)
     entries['od_mean_defect'] = add_field(od_frame, "Defecto Medio:", 9)
-    entries['od_image'] = add_field(od_frame, "Imagen:", 10)
-    ttk.Button(od_frame, text="Seleccionar Imagen",
-               command=lambda: select_image(entries['od_image'])).grid(row=10, column=2, padx=5)
+
+    # Crear una etiqueta informativa para imágenes
+    ttk.Label(od_frame, text="Imagen (generada automáticamente):", font=('Arial', 9)).grid(row=10, column=0,
+                                                                                           columnspan=3, padx=5, pady=2,
+                                                                                           sticky=tk.W)
+
+    # Etiqueta para mostrar el estado de la imagen
+    entries['od_image_status'] = ttk.Label(od_frame, text="La imagen se generará automáticamente",
+                                           font=('Arial', 9, 'italic'))
+    entries['od_image_status'].grid(row=11, column=0, columnspan=3, padx=5, pady=2, sticky=tk.W)
+
+    # Botón para verificar disponibilidad de imagen
+    ttk.Button(od_frame, text="Verificar Disponibilidad",
+               command=lambda: check_image_availability(entries['patient_id'].get(), Eye.RIGHT,
+                                                        entries['od_image_status'], images_dir)).grid(row=12, column=0,
+                                                                                                      columnspan=3,
+                                                                                                      padx=5, pady=2)
 
     # Datos OS
     os_frame = ttk.LabelFrame(form_frame, text="Ojo Izquierdo (OS)", padding="5")
@@ -104,9 +123,32 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
     entries['os_pachymetry'] = add_field(os_frame, "Paquimetría:", 7)
     entries['os_axial_length'] = add_field(os_frame, "Longitud Axial:", 8)
     entries['os_mean_defect'] = add_field(os_frame, "Defecto Medio:", 9)
-    entries['os_image'] = add_field(os_frame, "Imagen:", 10)
-    ttk.Button(os_frame, text="Seleccionar Imagen",
-               command=lambda: select_image(entries['os_image'])).grid(row=10, column=2, padx=5)
+
+    # Crear una etiqueta informativa para imágenes
+    ttk.Label(os_frame, text="Imagen (generada automáticamente):", font=('Arial', 9)).grid(row=10, column=0,
+                                                                                           columnspan=3, padx=5, pady=2,
+                                                                                           sticky=tk.W)
+
+    # Etiqueta para mostrar el estado de la imagen
+    entries['os_image_status'] = ttk.Label(os_frame, text="La imagen se generará automáticamente",
+                                           font=('Arial', 9, 'italic'))
+    entries['os_image_status'].grid(row=11, column=0, columnspan=3, padx=5, pady=2, sticky=tk.W)
+
+    # Botón para verificar disponibilidad de imagen
+    ttk.Button(os_frame, text="Verificar Disponibilidad",
+               command=lambda: check_image_availability(entries['patient_id'].get(), Eye.LEFT,
+                                                        entries['os_image_status'], images_dir)).grid(row=12, column=0,
+                                                                                                      columnspan=3,
+                                                                                                      padx=5, pady=2)
+
+    # Enlazar evento de cambio de ID para actualizar las etiquetas de imágenes
+    def update_image_labels(*args):
+        patient_id = entries['patient_id'].get()
+        if patient_id:
+            check_image_availability(patient_id, Eye.RIGHT, entries['od_image_status'], images_dir)
+            check_image_availability(patient_id, Eye.LEFT, entries['os_image_status'], images_dir)
+
+    entries['patient_id'].bind("<FocusOut>", update_image_labels)
 
     # Botones de acción
     button_frame = ttk.Frame(form_frame)
@@ -131,6 +173,10 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
         entries['age'].insert(0, patient.age)
         entries['gender'].set(patient.gender.name)
 
+        # Verificar disponibilidad de imágenes para el paciente actual
+        check_image_availability(patient.patient_id, Eye.RIGHT, entries['od_image_status'], images_dir)
+        check_image_availability(patient.patient_id, Eye.LEFT, entries['os_image_status'], images_dir)
+
         # Datos OD
         if patient.right_eye:
             entries['od_diagnosis'].set(patient.right_eye.diagnosis.name)
@@ -154,8 +200,6 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
                 entries['od_axial_length'].insert(0, patient.right_eye.axial_length)
             if patient.right_eye.mean_defect is not None:
                 entries['od_mean_defect'].insert(0, patient.right_eye.mean_defect)
-            if patient.right_eye.fundus_image:
-                entries['od_image'].insert(0, patient.right_eye.fundus_image)
 
         # Datos OS
         if patient.left_eye:
@@ -180,21 +224,36 @@ def create_patient_form(parent: tk.Toplevel, images_dir: str, on_save: Callable[
                 entries['os_axial_length'].insert(0, patient.left_eye.axial_length)
             if patient.left_eye.mean_defect is not None:
                 entries['os_mean_defect'].insert(0, patient.left_eye.mean_defect)
-            if patient.left_eye.fundus_image:
-                entries['os_image'].insert(0, patient.left_eye.fundus_image)
 
 
-def select_image(entry: ttk.Entry) -> None:
+def check_image_availability(patient_id: str, eye_type: Eye, status_label: ttk.Label, images_dir: str) -> None:
     """
-    Abre un diálogo para seleccionar una imagen y la guarda en el campo de entrada.
+    Verifica la disponibilidad de una imagen y actualiza la etiqueta de estado.
 
     Args:
-        entry: Campo de entrada donde se guardará la ruta de la imagen
+        patient_id: ID del paciente
+        eye_type: Tipo de ojo (RIGHT o LEFT)
+        status_label: Etiqueta para mostrar el estado
+        images_dir: Directorio de imágenes
     """
-    file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *.png")])
-    if file_path:
-        entry.delete(0, tk.END)
-        entry.insert(0, file_path)
+    if not patient_id:
+        status_label.config(text="Por favor, ingrese primero el ID del paciente", foreground="red")
+        return
+
+    # Validar el formato del ID del paciente
+    if not re.match(r'^\d+$', patient_id):
+        status_label.config(text="El ID debe ser numérico para generar imágenes automáticamente", foreground="red")
+        return
+
+    # Verificar si ya existe una imagen para este paciente y ojo
+    image_path = generate_image_path(patient_id, eye_type)
+
+    if image_path and os.path.exists(image_path):
+        status_label.config(text=f"✓ Imagen disponible: {os.path.basename(image_path)}", foreground="green")
+    else:
+        suffix = "OD" if eye_type == Eye.RIGHT else "OS"
+        expected_name = f"RET{patient_id}{suffix}.jpg"
+        status_label.config(text=f"✗ Imagen no disponible. Se buscará: {expected_name}", foreground="red")
 
 
 def save_patient(entries: Dict[str, Any], on_save: Callable[[Dict[str, Any]], None]) -> None:
@@ -205,14 +264,31 @@ def save_patient(entries: Dict[str, Any], on_save: Callable[[Dict[str, Any]], No
         entries: Diccionario con los campos de entrada
         on_save: Función de callback para guardar el paciente
     """
+    # Validar ID de paciente
+    patient_id = entries['patient_id'].get()
+    if not patient_id:
+        messagebox.showerror("Error", "Debe ingresar un ID de paciente")
+        return
+
+    if not re.match(r'^\d+$', patient_id):
+        messagebox.showwarning("Advertencia", "El ID debe ser numérico para la generación automática de imágenes")
+
     # Recopilar datos del formulario
     patient_data = {}
 
     for key, entry in entries.items():
+        # Saltar etiquetas de estado de imagen que no son campos de entrada
+        if key in ['od_image_status', 'os_image_status']:
+            continue
+
         if isinstance(entry, ttk.Combobox):
             patient_data[key] = entry.get()
-        else:
+        elif isinstance(entry, ttk.Entry):
             patient_data[key] = entry.get()
+
+    # Añadir campos virtuales para rutas de imágenes (serán ignorados ya que se generan automáticamente)
+    patient_data['od_image'] = ""
+    patient_data['os_image'] = ""
 
     # Llamar a la función de guardado
     on_save(patient_data)

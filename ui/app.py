@@ -3,13 +3,14 @@ from tkinter import ttk, messagebox
 import os
 
 # Importaciones internas
-from features.data_loading import load_patient_data, load_image_paths
+from features.data_loading import load_patient_data, generate_image_path
 from features.patient_management import add_patient, update_patient, delete_patient
 from features.image_handling import load_and_display_image, open_external_image
 from ui.patient_form import create_patient_form
 from ui.tabs.general_tab import setup_general_tab
 from ui.tabs.eye_tab import setup_eye_tab
 from ui.tabs.stats_tab import setup_stats_tab
+from core.models import Eye
 
 # Obtener la ruta de imágenes de las variables de entorno
 FUNDUS_IMAGES_DIR = os.environ.get('FUNDUS_IMAGES_DIR', 'FundusImages')
@@ -28,8 +29,10 @@ class PatientViewer:
 
         # Cargar los datos usando las variables de entorno
         self.dataset = load_patient_data(self.od_excel_file, self.os_excel_file)
-        self.od_images = load_image_paths(self.od_excel_file, self.images_dir)
-        self.os_images = load_image_paths(self.os_excel_file, self.images_dir)
+
+        # Ya no necesitamos cargar explícitamente las rutas de imágenes
+        # self.od_images = load_image_paths(self.od_excel_file, self.images_dir)
+        # self.os_images = load_image_paths(self.os_excel_file, self.images_dir)
 
         self.patient_ids = sorted(self.dataset.patients.keys())
         self.current_index = 0 if self.patient_ids else -1
@@ -204,6 +207,8 @@ class PatientViewer:
         # Configurar estado de botones de navegación
         self.prev_btn.config(state=tk.NORMAL if self.current_index > 0 else tk.DISABLED)
         self.next_btn.config(state=tk.NORMAL if self.current_index < len(self.patient_ids) - 1 else tk.DISABLED)
+        self.edit_btn.config(state=tk.NORMAL)
+        self.delete_btn.config(state=tk.NORMAL)
 
     def update_images(self, patient_id):
         """Actualiza las imágenes de fondo de ojo para el paciente actual"""
@@ -213,18 +218,30 @@ class PatientViewer:
         self.od_photo = None
         self.os_photo = None
 
-        # Cargar imagen OD
-        od_path = self.od_images.get(patient_id)
-        if od_path and isinstance(od_path, str):
+        # Generar ruta de imagen para OD
+        od_path = generate_image_path(patient_id, Eye.RIGHT)
+
+        print(f"PatientViewer: ID={patient_id}, OD path={od_path}")
+
+        if od_path:
             self.od_image, self.od_photo = load_and_display_image(od_path, self.od_img_label, self.images_dir)
             self.od_img_btn.config(state=tk.NORMAL)
         else:
             self.od_img_label.config(text="Imagen no disponible")
             self.od_img_btn.config(state=tk.DISABLED)
 
-        # Cargar imagen OS
-        os_path = self.os_images.get(patient_id)
-        if os_path and isinstance(os_path, str):
+        # Generar ruta de imagen para OD
+        od_path = generate_image_path(patient_id, Eye.RIGHT)
+        if od_path:
+            self.od_image, self.od_photo = load_and_display_image(od_path, self.od_img_label, self.images_dir)
+            self.od_img_btn.config(state=tk.NORMAL)
+        else:
+            self.od_img_label.config(text="Imagen no disponible")
+            self.od_img_btn.config(state=tk.DISABLED)
+
+        # Generar ruta de imagen para OS
+        os_path = generate_image_path(patient_id, Eye.LEFT)
+        if os_path:
             self.os_image, self.os_photo = load_and_display_image(os_path, self.os_img_label, self.images_dir)
             self.os_img_btn.config(state=tk.NORMAL)
         else:
@@ -234,8 +251,13 @@ class PatientViewer:
     def open_image(self, eye_side):
         """Abre la imagen en el visor predeterminado del sistema"""
         patient_id = self.patient_ids[self.current_index]
-        image_path = self.od_images.get(patient_id) if eye_side == 'od' else self.os_images.get(patient_id)
-        open_external_image(image_path, self.images_dir)
+        eye_type = Eye.RIGHT if eye_side == 'od' else Eye.LEFT
+        image_path = generate_image_path(patient_id, eye_type)
+
+        if image_path:
+            open_external_image(image_path, self.images_dir)
+        else:
+            messagebox.showwarning("Advertencia", "No hay imagen disponible para abrir")
 
     def prev_patient(self):
         """Navega al paciente anterior"""
@@ -274,11 +296,7 @@ class PatientViewer:
 
                 # Actualizar estadísticas
                 setup_stats_tab(self.stats_tab, self.dataset)
-                print("Estadísticas actualizadas---ini")
-                # Actualizar listado de imágenes
-                self.od_images = load_image_paths("patient_data_od.xlsx", self.images_dir)
-                self.os_images = load_image_paths("patient_data_os.xlsx", self.images_dir)
-                print("Estadísticas actualizadas------")
+
                 messagebox.showinfo("Éxito", "Paciente guardado correctamente")
                 form_window.destroy()
 
@@ -318,10 +336,6 @@ class PatientViewer:
                 # Actualizar estadísticas
                 setup_stats_tab(self.stats_tab, self.dataset)
 
-                # Actualizar listado de imágenes
-                self.od_images = load_image_paths("patient_data_od.xlsx", self.images_dir)
-                self.os_images = load_image_paths("patient_data_os.xlsx", self.images_dir)
-
                 messagebox.showinfo("Éxito", "Paciente actualizado correctamente")
                 form_window.destroy()
 
@@ -359,10 +373,6 @@ class PatientViewer:
 
                 # Actualizar estadísticas
                 setup_stats_tab(self.stats_tab, self.dataset)
-
-                # Actualizar listado de imágenes
-                self.od_images = load_image_paths("patient_data_od.xlsx", self.images_dir)
-                self.os_images = load_image_paths("patient_data_os.xlsx", self.images_dir)
 
                 messagebox.showinfo("Éxito", "Paciente eliminado correctamente")
 
