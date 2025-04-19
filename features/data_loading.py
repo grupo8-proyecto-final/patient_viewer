@@ -9,6 +9,32 @@ OD_EXCEL_FILE = os.environ.get('OD_EXCEL_FILE', 'patient_data_od.xlsx')
 OS_EXCEL_FILE = os.environ.get('OS_EXCEL_FILE', 'patient_data_os.xlsx')
 
 
+def rename_columns(df: pd.DataFrame) -> None:
+    df.rename(columns={"unnamed: 0": "patient_id"}, inplace=True)
+    df.rename(columns={"dioptre_1": "sphere"}, inplace=True)
+    df.rename(columns={"dioptre_2": "cylinder"}, inplace=True)
+    df.rename(columns={"astigmatism": "axis"}, inplace=True)
+    df.rename(columns={"phakic/pseudophakic": "crystalline_status"}, inplace=True)
+    df.rename(columns={"pneumatic": "pneumatic_iop"}, inplace=True)
+    df.rename(columns={"perkins": "perkins_iop"}, inplace=True)
+    df.rename(columns={"vf_md": "mean_defect"}, inplace=True)
+    return df
+
+def clean_headers(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Limpia los encabezados del DataFrame.
+
+    Args:
+        df: DataFrame a limpiar
+    Returns:
+        DataFrame con encabezados limpios
+    """
+    df.columns = df.columns.str.lower()
+    df.columns = df.columns.str.strip()
+    df = rename_columns(df)
+    # Eliminar filas vacías o incompletas
+    return df.drop(0)
+
 def load_patient_data(od_excel_file: str = None, os_excel_file: str = None) -> PapilaDataset:
     """
     Carga los datos de pacientes desde los archivos Excel.
@@ -27,10 +53,12 @@ def load_patient_data(od_excel_file: str = None, os_excel_file: str = None) -> P
     dataset = PapilaDataset()
 
     # Cargar datos de OD
-    od_df = pd.read_excel(od_excel_file)
+    od_df = pd.read_excel(od_excel_file, header=1)
+    od_df = clean_headers(od_df)
 
     # Cargar datos de OS
-    os_df = pd.read_excel(os_excel_file)
+    os_df = pd.read_excel(os_excel_file, header=1)
+    os_df = clean_headers(os_df)
 
     # Combinar IDs de pacientes
     patient_ids = set(od_df['patient_id'].tolist() + os_df['patient_id'].tolist())
@@ -129,7 +157,8 @@ def load_image_paths(excel_file: str, images_dir: str) -> Dict[str, str]:
     Returns:
         Diccionario con IDs de pacientes como claves y rutas de imágenes como valores
     """
-    df = pd.read_excel(excel_file)
+    df = pd.read_excel(excel_file, header=1)
+    df = clean_headers(df)
 
     # Ajustar las rutas para usar la variable de entorno
     image_paths = {}
@@ -168,6 +197,7 @@ def update_excel_files(patient: Patient, edit_mode: bool) -> None:
 
     # Actualizar OD
     od_df = pd.read_excel(od_excel_file)
+    od_df = clean_headers(od_df)
     od_data = {
         'patient_id': patient.patient_id,
         'age': patient.age,
@@ -192,6 +222,7 @@ def update_excel_files(patient: Patient, edit_mode: bool) -> None:
 
     # Actualizar OS
     os_df = pd.read_excel(os_excel_file)
+    os_df = clean_headers(os_df)
     os_data = {
         'patient_id': patient.patient_id,
         'age': patient.age,
@@ -228,10 +259,12 @@ def delete_from_excel(patient_id: str) -> None:
 
     # Eliminar de OD
     od_df = pd.read_excel(od_excel_file)
+    od_df = clean_headers(od_df)
     od_df = od_df[od_df['patient_id'] != patient_id]
     od_df.to_excel(od_excel_file, index=False)
 
     # Eliminar de OS
     os_df = pd.read_excel(os_excel_file)
+    os_df = clean_headers(os_df)
     os_df = os_df[os_df['patient_id'] != patient_id]
     os_df.to_excel(os_excel_file, index=False)

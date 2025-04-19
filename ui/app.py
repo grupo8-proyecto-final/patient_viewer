@@ -255,11 +255,11 @@ class PatientViewer:
 
                 # Actualizar estadísticas
                 setup_stats_tab(self.stats_tab, self.dataset)
-
+                print("Estadísticas actualizadas---ini")
                 # Actualizar listado de imágenes
                 self.od_images = load_image_paths("patient_data_od.xlsx", self.images_dir)
                 self.os_images = load_image_paths("patient_data_os.xlsx", self.images_dir)
-
+                print("Estadísticas actualizadas------")
                 messagebox.showinfo("Éxito", "Paciente guardado correctamente")
                 form_window.destroy()
 
